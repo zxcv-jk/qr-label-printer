@@ -1,6 +1,6 @@
 """
 Tkinter 主界面
-- 6个输入框
+- 6个输入框（带字数统计）
 - 生成预览 → 连续多页PDF + 纵向长图
 - 开始打印 → 整批单次 StartDoc
 - 打印任务锁、整批重复检查、线程安全
@@ -35,7 +35,7 @@ class Application:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("二维码标签打印工具")
-        self.root.geometry("520x520")
+        self.root.geometry("520x550")
         self.root.resizable(False, False)
 
         self.config = load_config()
@@ -54,32 +54,46 @@ class Application:
         main_frame = ttk.Frame(self.root, padding=15)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
+        # 输入区域配置：每行一个标签 + 输入框 + 字数统计标签
         row = 0
-        self.entry_material = self._add_entry(main_frame, "物料编码：", row)
+        self.entry_material, self.cnt_material = self._add_entry_with_counter(
+            main_frame, "物料编码：", row, hint=""
+        )
         row += 1
-        self.entry_batch = self._add_entry(main_frame, "生产批次：", row)
+        self.entry_batch, self.cnt_batch = self._add_entry_with_counter(
+            main_frame, "生产批次：", row, hint="8位数字"
+        )
         row += 1
-        self.entry_packing = self._add_entry(main_frame, "装箱量：", row)
+        self.entry_packing, self.cnt_packing = self._add_entry_with_counter(
+            main_frame, "装箱量：", row, hint="1~5位数字"
+        )
         row += 1
-        self.entry_desc = self._add_entry(main_frame, "物料描述：", row,
-                                          default=self.config.get("default_description", ""),
-                                          justify="center")
+        self.entry_desc, _ = self._add_entry_with_counter(
+            main_frame, "物料描述：", row,
+            default=self.config.get("default_description", ""),
+        )
         row += 1
-        self.entry_serial = self._add_entry(main_frame, "起始流水号：", row, default="1")
+        self.entry_serial, self.cnt_serial = self._add_entry_with_counter(
+            main_frame, "起始流水号：", row, default="1", hint="0~9999"
+        )
         row += 1
-        self.entry_quantity = self._add_entry(main_frame, "打印数量：", row, default="1")
+        self.entry_quantity, self.cnt_quantity = self._add_entry_with_counter(
+            main_frame, "打印数量：", row, default="1", hint=">0"
+        )
 
+        # 打印机信息
         row += 1
         printer_frame = ttk.Frame(main_frame)
-        printer_frame.grid(row=row, column=0, columnspan=2, pady=(10, 5), sticky="w")
+        printer_frame.grid(row=row, column=0, columnspan=3, pady=(10, 5), sticky="w")
         printer = get_printer(self.config) or "未检测到打印机"
         self.printer_var = tk.StringVar(value=f"当前打印机：{printer}")
         ttk.Label(printer_frame, textvariable=self.printer_var, foreground="gray").pack(side=tk.LEFT)
         ttk.Button(printer_frame, text="刷新", command=self._refresh_printer, width=6).pack(side=tk.LEFT, padx=(10, 0))
 
+        # 按钮区域 - 居中
         row += 1
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=row, column=0, columnspan=2, pady=(8, 5))
+        btn_frame.grid(row=row, column=0, columnspan=3, pady=(8, 5))
         self.btn_preview = ttk.Button(btn_frame, text="生成连续预览", command=self._preview, width=14)
         self.btn_preview.pack(side=tk.LEFT, padx=5)
         self.btn_print = ttk.Button(btn_frame, text="开始打印", command=self._print, width=12)
@@ -89,26 +103,49 @@ class Application:
         self.btn_logs = ttk.Button(btn_frame, text="打开日志目录", command=self._open_logs, width=12)
         self.btn_logs.pack(side=tk.LEFT, padx=5)
 
+        # 状态栏 - 居中
         row += 1
         self.status_var = tk.StringVar(value="就绪")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
-        status_bar.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        status_bar = ttk.Label(
+            main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.CENTER,
+        )
+        status_bar.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
+        # 预览提示 - 居中
         row += 1
         self.preview_info = tk.StringVar(value="")
-        ttk.Label(main_frame, textvariable=self.preview_info, foreground="blue").grid(
-            row=row, column=0, columnspan=2, pady=(5, 0)
+        ttk.Label(main_frame, textvariable=self.preview_info, foreground="blue", anchor=tk.CENTER).grid(
+            row=row, column=0, columnspan=3, sticky="ew", pady=(5, 0)
         )
 
-    def _add_entry(self, parent, label_text, row, default="", justify=None):
-        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w", pady=3)
-        entry = ttk.Entry(parent, width=35)
+    def _add_entry_with_counter(self, parent, label_text, row, default="", hint=""):
+        """
+        添加一行：标签 + 输入框 + 字数统计/提示
+        返回 (entry, counter_label)
+        """
+        # 标签（右对齐固定宽度）
+        label = ttk.Label(parent, text=label_text, anchor=tk.E, width=10)
+        label.grid(row=row, column=0, sticky="e", pady=3)
+
+        # 输入框
+        entry = ttk.Entry(parent, width=30)
         entry.grid(row=row, column=1, sticky="w", padx=(5, 0), pady=3)
         if default:
             entry.insert(0, default)
-        if justify:
-            entry.config(justify=justify)
-        return entry
+
+        # 字数统计 + 提示
+        hint_text = hint if hint else ""
+        counter = ttk.Label(parent, text=f"[{len(entry.get())}] {hint_text}", foreground="gray", width=14)
+        counter.grid(row=row, column=2, sticky="w", padx=(3, 0), pady=3)
+
+        # 绑定输入事件更新字数
+        def on_keyrelease(event, e=entry, c=counter, h=hint):
+            text = e.get()
+            c.config(text=f"[{len(text)}] {h}" if h else f"[{len(text)}]")
+
+        entry.bind("<KeyRelease>", on_keyrelease)
+
+        return entry, counter
 
     def _refresh_printer(self):
         printer = get_printer(self.config) or "未检测到打印机"
@@ -120,7 +157,6 @@ class Application:
         self.root.after(0, lambda: self.status_var.set(message))
 
     def _set_busy_state(self, busy: bool):
-        """设置忙碌状态，禁用/启用按钮"""
         if busy:
             self.is_printing = True
             self.is_previewing = True
@@ -224,7 +260,6 @@ class Application:
         return sum(1 for content in all_contents if is_duplicate(content))
 
     def _print(self):
-        """执行打印任务：整批一个 StartDoc 多页"""
         if self.is_printing:
             messagebox.showinfo("提示", "正在打印中，请等待当前任务完成。")
             return
@@ -258,7 +293,6 @@ class Application:
 
             def print_task():
                 try:
-                    # 使用 BatchPrinter 执行整批单次 StartDoc
                     with BatchPrinter(printer_name, self.config) as bp:
                         completed = 0
                         for i, serial in enumerate(serials):
@@ -276,10 +310,8 @@ class Application:
                                 description=inputs["description"], config=self.config,
                             )
 
-                            # 直接打印（无需保存临时文件）
                             bp.print_page(label_img)
 
-                            # 保存记录
                             save_record(
                                 material_code=material_code, batch=batch,
                                 packing_qty=packing_qty, serial=serial,
@@ -298,7 +330,6 @@ class Application:
                                 self.status_var.set(f"正在打印 {c}/{t} ..."))
                             log_info(f"已打印 [{completed}/{print_qty}]：{qr_content}")
 
-                    # 完成
                     clear_progress()
                     self.root.after(0, lambda: self.status_var.set(
                         f"打印完成，共发送 {print_qty} 张到打印机"))

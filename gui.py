@@ -7,6 +7,7 @@ Tkinter 主界面
 """
 
 import os
+import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk

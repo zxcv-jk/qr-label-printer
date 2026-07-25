@@ -1,0 +1,20 @@
+# 虚拟环境
+venv/
+__pycache__/
+*.pyc
+
+# 输出图片
+output/*.png
+
+# 日志和记录
+logs/
+data/print_history.csv
+
+# 打包输出
+dist/
+build/
+*.spec
+
+# IDE
+.vscode/
+.idea/

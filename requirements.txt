@@ -1,0 +1,4 @@
+Pillow
+qrcode
+pywin32
+pyinstaller

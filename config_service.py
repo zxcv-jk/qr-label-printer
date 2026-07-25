@@ -10,6 +10,7 @@ _CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.
 _DEFAULT_CONFIG = {
     "printer_name": "",
     "use_default_printer": True,
+    "force_configured_printer": False,
     "label_width_mm": 100,
     "label_height_mm": 60,
     "dpi": 203,
@@ -18,7 +19,8 @@ _DEFAULT_CONFIG = {
     "offset_y_mm": 0,
     "qr_size_mm": 30,
     "default_description": "请填写物料描述",
-    "save_test_image": True,
+    "draw_debug_border": False,
+    "save_test_image": False,
 }
 
 
@@ -36,7 +38,10 @@ def load_config() -> dict:
             if key not in config:
                 config[key] = value
         return config
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.error(f"配置文件读取失败: {e}", exc_info=True)
+        print(f"警告：配置文件读取失败，已使用默认设置。错误：{e}")
         return dict(_DEFAULT_CONFIG)
 
 

@@ -1,4 +1,7 @@
-Pillow
-qrcode
-pywin32
-pyinstaller
+# 运行时依赖
+Pillow==12.3.0
+qrcode==8.2
+pywin32==312
+
+# 开发打包依赖（运行时不需要）
+# pyinstaller==6.21.0

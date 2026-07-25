@@ -3,20 +3,43 @@
 - 使用 CSV 保存打印记录
 - 检查重复二维码
 - 记录上次任务进度以支持中断恢复
+- 路径兼容 PyInstaller 打包后的 EXE 运行环境
 """
 
 import csv
+import json
 import os
+import sys
 from datetime import datetime
 
-_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-_HISTORY_FILE = os.path.join(_DATA_DIR, "print_history.csv")
-_PROGRESS_FILE = os.path.join(_DATA_DIR, "last_progress.json")
+
+def _get_base_dir() -> str:
+    """获取可写数据目录（EXE 旁或项目根目录）"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
 
 
-def _ensure_data_dir():
-    """确保 data 目录存在"""
-    os.makedirs(_DATA_DIR, exist_ok=True)
+def _ensure_dir(path: str):
+    """确保目录存在"""
+    os.makedirs(path, exist_ok=True)
+
+
+def get_data_dir() -> str:
+    """获取数据目录路径"""
+    path = os.path.join(_get_base_dir(), "data")
+    _ensure_dir(path)
+    return path
+
+
+def get_history_file() -> str:
+    """获取打印记录 CSV 文件路径"""
+    return os.path.join(get_data_dir(), "print_history.csv")
+
+
+def get_progress_file() -> str:
+    """获取进度 JSON 文件路径"""
+    return os.path.join(get_data_dir(), "last_progress.json")
 
 
 def save_record(
@@ -29,10 +52,10 @@ def save_record(
     status: str = "已发送",
 ):
     """保存一条打印记录"""
-    _ensure_data_dir()
-    file_exists = os.path.exists(_HISTORY_FILE)
+    history_file = get_history_file()
+    file_exists = os.path.exists(history_file)
 
-    with open(_HISTORY_FILE, "a", newline="", encoding="utf-8") as f:
+    with open(history_file, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         if not file_exists:
             writer.writerow(["时间", "物料编码", "生产批次", "装箱量", "流水号", "二维码内容", "打印机", "状态"])
@@ -50,10 +73,11 @@ def save_record(
 
 def is_duplicate(qr_content: str) -> bool:
     """检查二维码内容是否已存在（重复提醒用）"""
-    if not os.path.exists(_HISTORY_FILE):
+    history_file = get_history_file()
+    if not os.path.exists(history_file):
         return False
     try:
-        with open(_HISTORY_FILE, "r", encoding="utf-8") as f:
+        with open(history_file, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             next(reader, None)  # 跳过标题行
             for row in reader:
@@ -74,8 +98,6 @@ def save_progress(
     completed_count: int,
 ):
     """保存当前打印任务进度"""
-    _ensure_data_dir()
-    import json
     progress = {
         "material_code": material_code,
         "batch": batch,
@@ -86,17 +108,16 @@ def save_progress(
         "completed_count": completed_count,
         "timestamp": datetime.now().isoformat(),
     }
-    with open(_PROGRESS_FILE, "w", encoding="utf-8") as f:
+    with open(get_progress_file(), "w", encoding="utf-8") as f:
         json.dump(progress, f, ensure_ascii=False, indent=2)
 
 
 def load_progress() -> dict | None:
     """读取上次任务进度"""
-    if not os.path.exists(_PROGRESS_FILE):
+    if not os.path.exists(get_progress_file()):
         return None
-    import json
     try:
-        with open(_PROGRESS_FILE, "r", encoding="utf-8") as f:
+        with open(get_progress_file(), "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return None
@@ -104,5 +125,5 @@ def load_progress() -> dict | None:
 
 def clear_progress():
     """清除上次任务进度（任务完成或取消时调用）"""
-    if os.path.exists(_PROGRESS_FILE):
-        os.remove(_PROGRESS_FILE)
+    if os.path.exists(get_progress_file()):
+        os.remove(get_progress_file())

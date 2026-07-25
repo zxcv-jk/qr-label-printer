@@ -1,6 +1,7 @@
 {
     "printer_name": "",
     "use_default_printer": true,
+    "force_configured_printer": false,
     "label_width_mm": 100,
     "label_height_mm": 60,
     "dpi": 203,
@@ -9,5 +10,6 @@
     "offset_y_mm": 0,
     "qr_size_mm": 30,
     "default_description": "请填写物料描述",
-    "save_test_image": true
+    "draw_debug_border": false,
+    "save_test_image": false
 }

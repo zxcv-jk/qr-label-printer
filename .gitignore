@@ -2,13 +2,14 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
 
 # 输出图片
 output/*.png
 
-# 日志和记录
+# 运行数据目录（issue #18）
+data/
 logs/
-data/print_history.csv
 
 # 打包输出
 dist/
@@ -18,3 +19,5 @@ build/
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo

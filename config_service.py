@@ -4,8 +4,15 @@
 
 import json
 import os
+import sys
 
-_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+def _get_base_dir() -> str:
+    """获取配置文件目录：EXE 旁边或源码目录"""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+_CONFIG_PATH = os.path.join(_get_base_dir(), "config.json")
 
 _DEFAULT_CONFIG = {
     "printer_name": "",

@@ -157,22 +157,18 @@ def create_label_image(
     field_first_y = _mm_to_px(config.get("field_first_y_mm", 5.0), dpi) + offset_y
     field_line_h = _mm_to_px(config.get("field_line_height_mm", 7.0), dpi)
 
-    packing_display = str(int(packing_qty))
-
     field_labels = [
         ("物料编码：", material_code),
         ("生产批次：", batch),
-        ("装箱量：",   packing_display),
+        ("装箱量：",   packing_qty),
         ("流水号：",   serial),
     ]
 
     for i, (label, value) in enumerate(field_labels):
         y_pos = field_first_y + i * field_line_h
         draw.text((field_label_x, y_pos), label, fill="black", font=font_field)
-        # 计算标签宽度，值紧随其后
-        label_bbox = draw.textbbox((0, 0), label, font=font_field)
-        val_x = field_label_x + (label_bbox[2] - label_bbox[0]) + 4
-        draw.text((val_x, y_pos), value, fill="black", font=font_field)
+        # 字段值纵向对齐固定位置
+        draw.text((field_value_x, y_pos), value, fill="black", font=font_field)
 
     # ---------- 下方二维码明文 ----------
     desc_font_for_plain = _get_font(config.get("font_size_plain", 18))

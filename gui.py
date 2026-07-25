@@ -200,6 +200,10 @@ class Application:
                 inputs["serial_start"], inputs["print_qty"],
             )
 
+            # 预览数量限制
+            if print_qty > 500:
+                raise ValueError("单次预览数量不能超过 500 张")
+
             serials = generate_serials(serial_start, print_qty)
 
             self._set_busy_state(True)
@@ -224,7 +228,7 @@ class Application:
                     if not labels:
                         raise RuntimeError("未生成任何标签")
 
-                    output_dir = "output"
+                    output_dir = self._get_output_dir()
                     os.makedirs(output_dir, exist_ok=True)
 
                     # 生成多页 PDF
@@ -375,14 +379,23 @@ class Application:
         os.startfile(logs_dir)
 
     @staticmethod
+    def _get_base_dir() -> str:
+        """获取程序所在目录（EXE 旁边或源码目录）"""
+        if getattr(sys, "frozen", False):
+            return os.path.dirname(sys.executable)
+        return os.path.dirname(os.path.abspath(__file__))
+
+    @staticmethod
     def _get_data_dir() -> str:
-        base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base, "data")
+        return os.path.join(Application._get_base_dir(), "data")
 
     @staticmethod
     def _get_logs_dir() -> str:
-        base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base, "logs")
+        return os.path.join(Application._get_base_dir(), "logs")
+
+    @staticmethod
+    def _get_output_dir() -> str:
+        return os.path.join(Application._get_base_dir(), "output")
 
     def _check_unfinished(self):
         progress = load_progress()

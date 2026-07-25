@@ -62,7 +62,8 @@ class Application:
         self.entry_packing = self._add_entry(main_frame, "装箱量：", row)
         row += 1
         self.entry_desc = self._add_entry(main_frame, "物料描述：", row,
-                                          default=self.config.get("default_description", ""))
+                                          default=self.config.get("default_description", ""),
+                                          justify="center")
         row += 1
         self.entry_serial = self._add_entry(main_frame, "起始流水号：", row, default="1")
         row += 1
@@ -99,12 +100,14 @@ class Application:
             row=row, column=0, columnspan=2, pady=(5, 0)
         )
 
-    def _add_entry(self, parent, label_text, row, default=""):
+    def _add_entry(self, parent, label_text, row, default="", justify=None):
         ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w", pady=3)
         entry = ttk.Entry(parent, width=35)
         entry.grid(row=row, column=1, sticky="w", padx=(5, 0), pady=3)
         if default:
             entry.insert(0, default)
+        if justify:
+            entry.config(justify=justify)
         return entry
 
     def _refresh_printer(self):

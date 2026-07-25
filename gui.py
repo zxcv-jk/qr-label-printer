@@ -54,6 +54,11 @@ class Application:
         main_frame = ttk.Frame(self.root, padding=15)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
+        # 三列布局：第0列标签，第1列输入框（填满），第2列字数提示
+        main_frame.columnconfigure(0, weight=0)
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(2, weight=0)
+
         # 输入区域配置：每行一个标签 + 输入框 + 字数统计标签
         row = 0
         self.entry_material, self.cnt_material = self._add_entry_with_counter(
@@ -71,6 +76,7 @@ class Application:
         self.entry_desc, _ = self._add_entry_with_counter(
             main_frame, "物料描述：", row,
             default=self.config.get("default_description", ""),
+            justify="center",
         )
         row += 1
         self.entry_serial, self.cnt_serial = self._add_entry_with_counter(
@@ -118,7 +124,7 @@ class Application:
             row=row, column=0, columnspan=3, sticky="ew", pady=(5, 0)
         )
 
-    def _add_entry_with_counter(self, parent, label_text, row, default="", hint=""):
+    def _add_entry_with_counter(self, parent, label_text, row, default="", hint="", justify=None):
         """
         添加一行：标签 + 输入框 + 字数统计/提示
         返回 (entry, counter_label)
@@ -128,8 +134,11 @@ class Application:
         label.grid(row=row, column=0, sticky="e", pady=3)
 
         # 输入框
-        entry = ttk.Entry(parent, width=30)
-        entry.grid(row=row, column=1, sticky="w", padx=(5, 0), pady=3)
+        entry_kwargs = {"width": 30}
+        if justify:
+            entry_kwargs["justify"] = justify
+        entry = ttk.Entry(parent, **entry_kwargs)
+        entry.grid(row=row, column=1, sticky="ew" if justify else "w", padx=(5, 0), pady=3)
         if default:
             entry.insert(0, default)
 

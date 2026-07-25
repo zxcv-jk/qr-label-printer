@@ -17,7 +17,18 @@ _DEFAULT_CONFIG = {
     "orientation": "horizontal",
     "offset_x_mm": 0,
     "offset_y_mm": 0,
-    "qr_size_mm": 30,
+    "qr_size_mm": 31.0,
+    "qr_y_mm": 4.0,
+    "margin_left_mm": 4.0,
+    "field_label_x_mm": 40.0,
+    "field_value_x_mm": 62.0,
+    "field_first_y_mm": 5.0,
+    "field_line_height_mm": 7.0,
+    "content_y_mm": 39.0,
+    "description_y_mm": 49.0,
+    "font_size_field": 24,
+    "font_size_plain": 18,
+    "font_size_desc": 22,
     "default_description": "请填写物料描述",
     "draw_debug_border": False,
     "save_test_image": False,
@@ -33,7 +44,6 @@ def load_config() -> dict:
     try:
         with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
-        # 填充缺失的默认值
         for key, value in _DEFAULT_CONFIG.items():
             if key not in config:
                 config[key] = value

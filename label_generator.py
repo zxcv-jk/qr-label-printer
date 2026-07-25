@@ -2,8 +2,8 @@
 QR Code 生成 + 完整标签图片生成
 - 调用 qrcode 库生成二维码（最近邻缩放、4格白边、整数倍尺寸）
 - 使用 Pillow 创建 100×60mm 标签画布
-- 绘制固定模板：左二维码、右四字段、下明文、下物料描述
-- 物料描述使用 textbbox 按实际像素宽度截断
+- 所有关键位置使用毫米参数，可从 config.json 调节
+- 支持生成连续多页 PDF 和纵向连续长图
 """
 
 import math
@@ -31,13 +31,13 @@ def _get_font(size: int = 14):
     return ImageFont.load_default()
 
 
-def generate_qr_image(qr_content: str, qr_size_mm: int = 30, dpi: int = 203) -> Image.Image:
+def generate_qr_image(qr_content: str, qr_size_mm: float = 31.0, dpi: int = 203) -> Image.Image:
     """
     生成 QR Code 图片，使用最近邻缩放确保纯黑白。
 
     - border=4（4格白边）
     - 先以 box_size=1 生成，计算模块数
-    - 再以整数倍 box_size 重新生成，NEAREST 缩放到精确尺寸
+    - 再以整数倍 box_size 重新生成
 
     返回 PIL Image（RGB 模式）
     """
@@ -73,29 +73,31 @@ def generate_qr_image(qr_content: str, qr_size_mm: int = 30, dpi: int = 203) -> 
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
 
-    # NEAREST 缩放到精确像素尺寸（消除任何微小偏差）
+    # NEAREST 缩放到精确像素尺寸
     if qr_img.size != (final_size, final_size):
         qr_img = qr_img.resize((final_size, final_size), Image.Resampling.NEAREST)
 
     return qr_img
 
 
-def _truncate_text_to_fit(draw: ImageDraw.Draw, text: str, font: ImageFont, max_width: int) -> str:
-    """
-    根据可用像素宽度逐步截断文字，避免超出边界。
-    """
+def _truncate_text_to_fit(draw: ImageDraw.Draw, text: str, font: ImageFont, max_width_px: int) -> str:
+    """根据可用像素宽度逐步截断文字"""
     if not text:
         return text
     bbox = draw.textbbox((0, 0), text, font=font)
-    if bbox[2] - bbox[0] <= max_width:
+    if bbox[2] - bbox[0] <= max_width_px:
         return text
-    # 逐步缩短
     for i in range(len(text) - 1, 0, -1):
         truncated = text[:i] + "..."
         bbox = draw.textbbox((0, 0), truncated, font=font)
-        if bbox[2] - bbox[0] <= max_width:
+        if bbox[2] - bbox[0] <= max_width_px:
             return truncated
     return text[0] + "..." if text else ""
+
+
+def _mm_to_px(mm: float, dpi: int) -> int:
+    """毫米转像素"""
+    return int(mm * dpi / 25.4)
 
 
 def create_label_image(
@@ -111,96 +113,163 @@ def create_label_image(
     """
     创建完整标签图片。
 
-    字体大小（203 DPI 参考值）：
-    - 字段名称/值：28 px
-    - 二维码明文：20 px
-    - 物料描述：26 px
+    布局参数（可从 config.json 调整，单位：毫米）：
+    - qr_size_mm: 二维码尺寸
+    - margin_left_mm: 左侧边距
+    - field_label_x_mm: 字段名称起始 X
+    - field_first_y_mm: 第一行字段 Y
+    - field_line_height_mm: 字段行高
+    - content_y_mm: 二维码明文 Y
+    - description_y_mm: 物料描述 Y
+    - font_size_field: 字段字号（像素）
+    - font_size_plain: 明文字号（像素）
+    - font_size_desc: 描述字号（像素）
     """
     dpi = config.get("dpi", 203)
     width_mm = config.get("label_width_mm", 100)
     height_mm = config.get("label_height_mm", 60)
 
-    # mm -> px
-    width_px = int(width_mm * dpi / 25.4)
-    height_px = int(height_mm * dpi / 25.4)
+    width_px = _mm_to_px(width_mm, dpi)
+    height_px = _mm_to_px(height_mm, dpi)
 
     # 创建白色画布
     canvas = Image.new("RGB", (width_px, height_px), "white")
     draw = ImageDraw.Draw(canvas)
 
-    # 放大后的字体（issue #12）
-    font_field = _get_font(28)       # 字段名称和值
-    font_plain = _get_font(20)       # 二维码明文
-    font_desc = _get_font(26)        # 物料描述
+    # 字体
+    font_field = _get_font(config.get("font_size_field", 24))
+    font_plain = _get_font(config.get("font_size_plain", 18))
+    font_desc = _get_font(config.get("font_size_desc", 22))
 
-    # 偏移量 (px)
-    offset_x = int(config.get("offset_x_mm", 0) * dpi / 25.4)
-    offset_y = int(config.get("offset_y_mm", 0) * dpi / 25.4)
+    # 偏移量
+    offset_x = _mm_to_px(config.get("offset_x_mm", 0), dpi)
+    offset_y = _mm_to_px(config.get("offset_y_mm", 0), dpi)
 
-    # 二维码尺寸 (px)
-    qr_size_px = qr_img.width  # 使用二维码实际尺寸
-    margin = 12
-    qr_x = margin + offset_x
-    qr_y = margin + offset_y
+    # ---------- 二维码 ----------
+    margin_left = _mm_to_px(config.get("margin_left_mm", 4.0), dpi)
+    qr_x = margin_left + offset_x
+    qr_y = _mm_to_px(config.get("qr_y_mm", 4.0), dpi) + offset_y
     canvas.paste(qr_img, (qr_x, qr_y))
 
-    # 右侧信息文本
-    text_x = qr_x + qr_size_px + 12
-    text_y = qr_y + 2
+    # ---------- 右侧字段 ----------
+    field_label_x = _mm_to_px(config.get("field_label_x_mm", 40.0), dpi) + offset_x
+    field_value_x = _mm_to_px(config.get("field_value_x_mm", 62.0), dpi) + offset_x
+    field_first_y = _mm_to_px(config.get("field_first_y_mm", 5.0), dpi) + offset_y
+    field_line_h = _mm_to_px(config.get("field_line_height_mm", 7.0), dpi)
 
-    # 装箱量显示（去掉前置零）
     packing_display = str(int(packing_qty))
 
-    lines_right = [
-        f"物料编码：{material_code}",
-        f"生产批次：{batch}",
-        f"装箱量：{packing_display}",
-        f"流水号：{serial}",
+    field_labels = [
+        ("物料编码：", material_code),
+        ("生产批次：", batch),
+        ("装箱量：",   packing_display),
+        ("流水号：",   serial),
     ]
 
-    line_height = 34  # 28px 字体的行高
-    for i, text in enumerate(lines_right):
-        y_pos = text_y + i * line_height
-        draw.text((text_x, y_pos), text, fill="black", font=font_field)
+    for i, (label, value) in enumerate(field_labels):
+        y_pos = field_first_y + i * field_line_h
+        draw.text((field_label_x, y_pos), label, fill="black", font=font_field)
+        # 计算标签宽度，值紧随其后
+        label_bbox = draw.textbbox((0, 0), label, font=font_field)
+        val_x = field_label_x + (label_bbox[2] - label_bbox[0]) + 4
+        draw.text((val_x, y_pos), value, fill="black", font=font_field)
 
-    # 下方明文 - 完整二维码内容
-    # 计算可用宽度，居中对齐
-    plain_y = height_px - 70 + offset_y
-    plain_text = qr_content
-    # 如果明文超出宽度，也用 textbbox 截断（但通常二维码内容较短）
-    max_plain_width = width_px - margin * 2
-    plain_text = _truncate_text_to_fit(draw, plain_text, font_plain, max_plain_width)
-    draw.text(
-        (margin + offset_x, plain_y),
-        plain_text,
-        fill="black",
-        font=font_plain,
-    )
+    # ---------- 下方二维码明文 ----------
+    desc_font_for_plain = _get_font(config.get("font_size_plain", 18))
+    content_y = _mm_to_px(config.get("content_y_mm", 39.0), dpi) + offset_y
+    max_content_width = width_px - _mm_to_px(config.get("margin_left_mm", 4.0) * 2, dpi)
+    display_content = _truncate_text_to_fit(draw, qr_content, desc_font_for_plain, max_content_width)
+    draw.text((margin_left + offset_x, content_y), display_content, fill="black", font=desc_font_for_plain)
 
-    # 下方物料描述
-    desc_y = plain_y + 30
+    # ---------- 底部物料描述 ----------
+    desc_font = _get_font(config.get("font_size_desc", 22))
+    desc_y = _mm_to_px(config.get("description_y_mm", 49.0), dpi) + offset_y
     desc_text = description.strip()
     if not desc_text:
         desc_text = config.get("default_description", "")
-    # 使用 textbbox 按实际宽度截断
-    desc_max_width = width_px - margin * 2
-    desc_text = _truncate_text_to_fit(draw, desc_text, font_desc, desc_max_width)
-    draw.text(
-        (margin + offset_x, desc_y),
-        desc_text,
-        fill="black",
-        font=font_desc,
-    )
+    desc_text = _truncate_text_to_fit(draw, desc_text, desc_font, max_content_width)
+    draw.text((margin_left + offset_x, desc_y), desc_text, fill="black", font=desc_font)
 
-    # 调试边框（issue #14）
+    # 调试边框
     if config.get("draw_debug_border", False):
-        draw.rectangle(
-            [0, 0, width_px - 1, height_px - 1],
-            outline="black",
-            width=1,
-        )
+        draw.rectangle([0, 0, width_px - 1, height_px - 1], outline="black", width=1)
 
     return canvas
+
+
+def create_multi_page_pdf(
+    images: list[Image.Image],
+    output_path: str,
+    config: dict,
+):
+    """
+    将多张标签图片保存为多页 PDF（每张标签一页）。
+
+    需要配合：保存时使用 Pillow 的 PDF 保存功能，
+    第一张图片 save() 时传入 append_images。
+    """
+    dpi = config.get("dpi", 203)
+    if not images:
+        return None
+
+    # 所有图片转为 RGB
+    rgb_images = [img.convert("RGB") for img in images]
+
+    # 第一张作为主图，其余作为附加页
+    first = rgb_images[0]
+    rest = rgb_images[1:] if len(rgb_images) > 1 else None
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    first.save(
+        output_path,
+        format="PDF",
+        save_all=True,
+        append_images=rest,
+        dpi=(dpi, dpi),
+        title="二维码标签连续预览",
+    )
+    return output_path
+
+
+def create_continuous_long_image(
+    images: list[Image.Image],
+    output_path: str,
+) -> str:
+    """
+    将多张标签图片纵向拼接为一张长图，
+    便于快速查看流水号是否断号、跳号。
+    """
+    if not images:
+        return None
+
+    # 所有图片宽度一致
+    widths = [img.width for img in images]
+    max_width = max(widths) if widths else 0
+    total_height = sum(img.height for img in images)
+
+    # 创建纵向长图，每张标签之间加 2px 分隔线
+    separator = 2
+    long_img = Image.new(
+        "RGB",
+        (max_width, total_height + separator * (len(images) - 1)),
+        "white",
+    )
+    y_offset = 0
+    for i, img in enumerate(images):
+        # 如果宽度不一致，居中放置
+        x_offset = (max_width - img.width) // 2
+        long_img.paste(img, (x_offset, y_offset))
+        y_offset += img.height
+        if i < len(images) - 1:
+            # 画分隔线
+            for s in range(separator):
+                for x in range(max_width):
+                    long_img.putpixel((x, y_offset + s), (200, 200, 200))
+            y_offset += separator
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    long_img.save(output_path)
+    return output_path
 
 
 def save_test_image(image: Image.Image, output_dir: str = "output", filename: str = "test_label.png"):

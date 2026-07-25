@@ -200,9 +200,9 @@ class Application:
                 inputs["serial_start"], inputs["print_qty"],
             )
 
-            # 预览数量限制
-            if print_qty > 500:
-                raise ValueError("单次预览数量不能超过 500 张")
+            # 预览数量限制（预览时全部图片会驻留内存，限制为 100 张）
+            if print_qty > 100:
+                raise ValueError("单次预览数量不能超过 100 张")
 
             serials = generate_serials(serial_start, print_qty)
 

@@ -213,7 +213,7 @@ def create_multi_page_pdf(
 
     # 第一张作为主图，其余作为附加页
     first = rgb_images[0]
-    rest = rgb_images[1:] if len(rgb_images) > 1 else None
+    rest = rgb_images[1:]  # 一张标签时 rest=[]，不会报错
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     first.save(

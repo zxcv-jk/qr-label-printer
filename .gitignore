@@ -4,8 +4,8 @@ __pycache__/
 *.pyc
 *.pyo
 
-# 输出图片
-output/*.png
+# 输出目录（图片、PDF 等）
+output/
 
 # 运行数据目录（issue #18）
 data/
